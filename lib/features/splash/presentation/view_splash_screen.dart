@@ -79,7 +79,7 @@ class _ViewSplashScreenState extends State<ViewSplashScreen> {
                   child: PrimaryActionButton(
                     text: 'Start',
                     onTap: () {
-                      // Navigator.pushNamed(context, AppRoutes.);
+                      Navigator.pushNamed(context, AppRoutes.onboading);
                     },
                   ),
                 ),

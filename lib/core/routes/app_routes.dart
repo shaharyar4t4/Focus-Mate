@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:focusmate/features/onboarding/presentation/view_oboarding.dart';
 import 'package:focusmate/features/splash/presentation/view_splash_screen.dart';
 
 class AppRoutes {
   static const splash = '/splash';
-  // static const onboading = '/onboading';
+  static const onboading = '/onboading';
   // static const login = '/login';
   // static const signup = '/signup';
   // static const getstarted = '/getstarted';
@@ -15,7 +16,7 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => ViewSplashScreen(),
-    // onboading: (context) => ViewOnboarding(),
+    onboading: (context) => ViewOboarding(),
     // login: (context) => ViewLogin(),
     // signup: (context) => ViewSignup(),
     // getstarted: (context) => ViewGetStarted(),

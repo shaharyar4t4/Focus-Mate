@@ -4,6 +4,7 @@ import 'core/util/util.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routes/app_routes.dart';
 import 'features/splash/controller/splash_controller.dart';
+import 'features/onboarding/controller/onboarding_controller.dart';
 
 void main() {
   runApp(const MyApp());
@@ -18,7 +19,10 @@ class MyApp extends StatelessWidget {
 
     MaterialTheme theme = MaterialTheme(textTheme);
     return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => SplashController())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => SplashController()),
+        ChangeNotifierProvider(create: (_) => OnboardingController()),
+      ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Focus Mate',
