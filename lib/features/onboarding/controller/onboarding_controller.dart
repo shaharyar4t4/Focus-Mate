@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/assets/app_assets_link.dart';
+import '../../../core/routes/app_routes.dart';
 
 class OnboardingController extends ChangeNotifier {
   final PageController pageController = PageController();
@@ -27,14 +28,13 @@ class OnboardingController extends ChangeNotifier {
   }
 
   void nextPage(BuildContext context) {
-    if (_currentIndex < 1) {
+    if (_currentIndex < onboardingData.length - 1) {
       pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     } else {
-      // Navigate to Login/Dashboard
-      // Navigator.pushNamed(context, AppRoutes.login);
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
     }
   }
 

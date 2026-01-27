@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'core/routes/app_routes.dart';
 import 'features/splash/controller/splash_controller.dart';
 import 'features/onboarding/controller/onboarding_controller.dart';
+import 'features/dashboard/controller/dashboard_controller.dart';
 
 void main() {
   runApp(const MyApp());
@@ -22,6 +23,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => SplashController()),
         ChangeNotifierProvider(create: (_) => OnboardingController()),
+        ChangeNotifierProvider(create: (_) => DashboardController()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
