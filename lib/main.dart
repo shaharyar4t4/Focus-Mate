@@ -6,8 +6,11 @@ import 'core/routes/app_routes.dart';
 import 'features/splash/controller/splash_controller.dart';
 import 'features/onboarding/controller/onboarding_controller.dart';
 import 'features/dashboard/controller/dashboard_controller.dart';
+import 'core/services/background_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppBackgroundService.initializeService();
   runApp(const MyApp());
 }
 
