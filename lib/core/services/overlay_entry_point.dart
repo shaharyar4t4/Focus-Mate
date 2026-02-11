@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:android_intent_plus/flag.dart';
 
 @pragma("vm:entry-point")
 void overlayMain() {
@@ -74,15 +76,21 @@ class _OverlayWidgetState extends State<OverlayWidget> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    // We can't easily kill the app from here.
-                    // But we can close the overlay.
-                    // However, if we close the overlay, the user can continue using the app.
-                    // The background service will re-trigger the overlay in 15s.
-                    // A better approach might be to minimize the app?
-                    // FlutterOverlayWindow doesn't support "Home" action directly.
-                    // Use system channels?
-                    FlutterOverlayWindow.closeOverlay();
+                  onPressed: () async {
+                    // Minimize the app (go to home) to ensure the user leaves the blocked app
+                    try {
+                      final intent = AndroidIntent(
+                        action: 'android.intent.action.MAIN',
+                        category: 'android.intent.category.HOME',
+                        flags: [Flag.FLAG_ACTIVITY_NEW_TASK],
+                      );
+                      await intent.launch();
+                    } catch (e) {
+                      debugPrint("Error launching home intent: $e");
+                    }
+
+                    // Close the overlay
+                    await FlutterOverlayWindow.closeOverlay();
                   },
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),

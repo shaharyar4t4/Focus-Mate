@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:android_intent_plus/flag.dart';
 import 'package:app_usage/app_usage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -51,7 +53,6 @@ class AppBackgroundService {
       iosConfiguration: IosConfiguration(
         // auto start service
         autoStart: true,
-        // this will be executed when app is in foreground in separated isolate
         onForeground: onStart,
       ),
     );
@@ -61,6 +62,7 @@ class AppBackgroundService {
   static void onStart(ServiceInstance service) async {
     // Only available for flutter 3.0.0 and later
     DartPluginRegistrant.ensureInitialized();
+    print('[BackgroundService] onStart called');
 
     // Check system alert window permission if possible or just request user to grant it from main.
     // FlutterOverlayWindow.isPermissionGranted()
@@ -130,6 +132,10 @@ class AppBackgroundService {
       }
 
       for (final limit in activeLimits) {
+        print(
+          '[BackgroundService] Checking usage for ${limit.packageName} (Limit: ${limit.timeLimitInMinutes}m)',
+        );
+
         // Find usage for this app
         try {
           final usageInfo = infos.firstWhere(
@@ -137,24 +143,49 @@ class AppBackgroundService {
           );
 
           final int usageMinutes = usageInfo.usage.inMinutes;
+          print(
+            '[BackgroundService] Usage for ${limit.packageName}: $usageMinutes minutes',
+          );
 
           if (usageMinutes >= limit.timeLimitInMinutes) {
-            final DateTime oneMinuteAgo = now.subtract(
-              const Duration(minutes: 1),
+            // Widen the check window to 5 minutes to catch lagging usage stats
+            final DateTime checkWindowStart = now.subtract(
+              const Duration(minutes: 5),
             );
             List<AppUsageInfo> recentInfos = await AppUsage().getAppUsage(
-              oneMinuteAgo,
+              checkWindowStart,
               now,
             );
 
             final isRecentlyUsed = recentInfos.any(
               (info) =>
                   info.packageName == limit.packageName &&
-                  info.usage.inSeconds > 0,
+                  info.usage.inSeconds > 0, // Check for any usage in window
             );
 
             if (isRecentlyUsed) {
+              print(
+                '[BackgroundService] App ${limit.packageName} is legally active. Blocking...',
+              );
+              // Proactively minimize the app by going to Home
+              // awaiting the intent launch might block the isolate slightly but it's okay for background service
+              try {
+                final intent = AndroidIntent(
+                  action: 'android.intent.action.MAIN',
+                  category: 'android.intent.category.HOME',
+                  flags: [Flag.FLAG_ACTIVITY_NEW_TASK],
+                );
+                await intent.launch();
+                print('[BackgroundService] Home intent launched');
+              } catch (e) {
+                print("[BackgroundService] Error launching home intent: $e");
+              }
+
               await _showOverlay(limit.appName);
+            } else {
+              print(
+                '[BackgroundService] App ${limit.packageName} limit reached but not recently used (inactive).',
+              );
             }
           }
         } catch (e) {
@@ -168,7 +199,17 @@ class AppBackgroundService {
   }
 
   static Future<void> _showOverlay(String appName) async {
-    if (await FlutterOverlayWindow.isActive()) return;
+    print('[BackgroundService] Attempting to show overlay for $appName');
+    if (await FlutterOverlayWindow.isActive()) {
+      print('[BackgroundService] Overlay already active');
+      return;
+    }
+
+    bool permission = await FlutterOverlayWindow.isPermissionGranted();
+    if (!permission) {
+      print('[BackgroundService] Overlay permission NOT granted');
+      return;
+    }
 
     await FlutterOverlayWindow.showOverlay(
       enableDrag: false,

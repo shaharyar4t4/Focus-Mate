@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/util/util.dart';
@@ -9,9 +10,22 @@ import 'features/dashboard/controller/dashboard_controller.dart';
 import 'core/services/background_service.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await AppBackgroundService.initializeService();
-  runApp(const MyApp());
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      debugPrint('[Main] Initializing Background Service...');
+      try {
+        await AppBackgroundService.initializeService();
+        debugPrint('[Main] Background Service Initialized Successfully');
+      } catch (e, stack) {
+        debugPrint('[Main] Error initializing service: $e\n$stack');
+      }
+      runApp(const MyApp());
+    },
+    (error, stack) {
+      debugPrint('[Main] Uncaught error: $error\n$stack');
+    },
+  );
 }
 
 class MyApp extends StatelessWidget {
