@@ -1,23 +1,12 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:android_intent_plus/flag.dart';
 
-@pragma("vm:entry-point")
-void overlayMain() {
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const OverlayWidget(),
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-    ),
-  );
-}
+// NOTE: The `overlayMain` entry point lives in lib/main.dart. flutter_overlay_window
+// resolves it by name against the app's root library only (it uses a 2-arg
+// DartEntrypoint with no library URI), so it must be a top-level function in
+// main.dart — not here. This file just holds the overlay UI.
 
 class OverlayWidget extends StatefulWidget {
   const OverlayWidget({super.key});
@@ -43,7 +32,7 @@ class _OverlayWidgetState extends State<OverlayWidget> {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),

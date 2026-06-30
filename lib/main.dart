@@ -7,7 +7,26 @@ import 'core/routes/app_routes.dart';
 import 'features/splash/controller/splash_controller.dart';
 import 'features/onboarding/controller/onboarding_controller.dart';
 import 'features/dashboard/controller/dashboard_controller.dart';
+import 'features/permissions/controller/permission_controller.dart';
 import 'core/services/background_service.dart';
+import 'core/services/overlay_entry_point.dart';
+
+/// Entry point for the blocking overlay isolate. flutter_overlay_window looks
+/// this up by name in the app's root library (main.dart), so it MUST stay here
+/// as a top-level function — moving it to another file breaks overlay rendering.
+@pragma("vm:entry-point")
+void overlayMain() {
+  runApp(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: const OverlayWidget(),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ),
+    ),
+  );
+}
 
 void main() async {
   runZonedGuarded(
@@ -41,6 +60,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SplashController()),
         ChangeNotifierProvider(create: (_) => OnboardingController()),
         ChangeNotifierProvider(create: (_) => DashboardController()),
+        ChangeNotifierProvider(create: (_) => PermissionController()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

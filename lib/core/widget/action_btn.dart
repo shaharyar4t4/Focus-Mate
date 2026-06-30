@@ -4,8 +4,7 @@ class PrimaryActionButton extends StatelessWidget {
   final String text;
   final VoidCallback? onTap;
 
-  const PrimaryActionButton({Key? key, required this.text, this.onTap})
-    : super(key: key);
+  const PrimaryActionButton({super.key, required this.text, this.onTap});
 
   @override
   Widget build(BuildContext context) {

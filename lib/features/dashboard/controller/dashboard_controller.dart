@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:app_usage/app_usage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:installed_apps/app_info.dart';
 import '../model/app_limit_model.dart';
@@ -49,15 +50,12 @@ class DashboardController extends ChangeNotifier {
     if (_searchQuery.isEmpty) {
       _filteredApps = List.from(_installedApps);
     } else {
+      final query = _searchQuery.toLowerCase();
       _filteredApps = _installedApps
           .where(
             (app) =>
-                (app.name ?? '').toLowerCase().contains(
-                  _searchQuery.toLowerCase(),
-                ) ||
-                (app.packageName ?? '').toLowerCase().contains(
-                  _searchQuery.toLowerCase(),
-                ),
+                app.name.toLowerCase().contains(query) ||
+                app.packageName.toLowerCase().contains(query),
           )
           .toList();
     }
@@ -65,7 +63,37 @@ class DashboardController extends ChangeNotifier {
 
   Future<void> loadSavedLimits() async {
     _savedLimits = await _repository.getLimits();
+    await _refreshUsage();
     notifyListeners();
+  }
+
+  /// Fills each saved limit's [AppLimit.usageToday] with the real minutes used
+  /// today, read from the system usage stats. Requires Usage Access; if it's
+  /// missing the call returns empty/throws and usage stays at 0.
+  Future<void> _refreshUsage() async {
+    if (_savedLimits.isEmpty) return;
+    try {
+      final DateTime now = DateTime.now();
+      final DateTime startOfDay = DateTime(now.year, now.month, now.day);
+      final List<AppUsageInfo> infos = await AppUsage().getAppUsage(
+        startOfDay,
+        now,
+      );
+
+      final Map<String, int> usageByPackage = {
+        for (final info in infos) info.packageName: info.usage.inMinutes,
+      };
+
+      _savedLimits = _savedLimits
+          .map(
+            (limit) => limit.copyWith(
+              usageToday: usageByPackage[limit.packageName] ?? 0,
+            ),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('[Dashboard] Error loading usage: $e');
+    }
   }
 
   Future<void> addOrUpdateLimit(AppLimit limit) async {

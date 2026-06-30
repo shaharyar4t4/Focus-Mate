@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:focusmate/core/assets/app_assets_link.dart';
-import 'package:focusmate/core/routes/app_routes.dart';
 import 'package:focusmate/core/widget/action_btn.dart';
 import 'package:focusmate/core/widget/screen_padding.dart';
 import 'package:provider/provider.dart';
@@ -79,7 +78,7 @@ class _ViewSplashScreenState extends State<ViewSplashScreen> {
                   child: PrimaryActionButton(
                     text: 'Start',
                     onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.onboading);
+                      context.read<SplashController>().decideNextScreen(context);
                     },
                   ),
                 ),

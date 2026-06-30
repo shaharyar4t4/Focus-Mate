@@ -5,7 +5,7 @@ import 'dart:ui';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:android_intent_plus/flag.dart';
 import 'package:app_usage/app_usage.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide NotificationVisibility;
@@ -14,6 +14,10 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 import '../../features/dashboard/model/app_limit_model.dart';
 
+// The background isolate reaches `onStart` (a static method) through native
+// code, so the enclosing class must be retained as an entry point too — not
+// just the method.
+@pragma('vm:entry-point')
 class AppBackgroundService {
   static Future<void> initializeService() async {
     final service = FlutterBackgroundService();
@@ -27,14 +31,30 @@ class AppBackgroundService {
       importance: Importance.low, // importance must be at low or higher level
     );
 
+    /// High-importance channel for the "Time's Up" alert. Importance.max +
+    /// playSound makes Android pop a heads-up notification AND play the ringtone
+    /// sound. (To use a custom ringtone instead of the default one, drop a sound
+    /// file at android/app/src/main/res/raw/time_up.mp3 and set
+    /// `sound: RawResourceAndroidNotificationSound('time_up')` below and on the
+    /// notification details in [_showTimeUpNotification].)
+    const AndroidNotificationChannel alertChannel = AndroidNotificationChannel(
+      'focus_alerts', // id
+      'Focus Alerts', // title
+      description: 'Alerts you when an app reaches its daily time limit.',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    );
+
     final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
         FlutterLocalNotificationsPlugin();
 
-    await flutterLocalNotificationsPlugin
+    final androidPlugin = flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
+        >();
+    await androidPlugin?.createNotificationChannel(channel);
+    await androidPlugin?.createNotificationChannel(alertChannel);
 
     await service.configure(
       androidConfiguration: AndroidConfiguration(
@@ -62,7 +82,7 @@ class AppBackgroundService {
   static void onStart(ServiceInstance service) async {
     // Only available for flutter 3.0.0 and later
     DartPluginRegistrant.ensureInitialized();
-    print('[BackgroundService] onStart called');
+    debugPrint('[BackgroundService] onStart called');
 
     // Check system alert window permission if possible or just request user to grant it from main.
     // FlutterOverlayWindow.isPermissionGranted()
@@ -127,12 +147,12 @@ class AppBackgroundService {
         infos = await AppUsage().getAppUsage(startOfDay, endOfDay);
       } catch (e) {
         // Permission might not be granted
-        print('Error fetching app usage: $e');
+        debugPrint('Error fetching app usage: $e');
         return;
       }
 
       for (final limit in activeLimits) {
-        print(
+        debugPrint(
           '[BackgroundService] Checking usage for ${limit.packageName} (Limit: ${limit.timeLimitInMinutes}m)',
         );
 
@@ -143,7 +163,7 @@ class AppBackgroundService {
           );
 
           final int usageMinutes = usageInfo.usage.inMinutes;
-          print(
+          debugPrint(
             '[BackgroundService] Usage for ${limit.packageName}: $usageMinutes minutes',
           );
 
@@ -164,26 +184,36 @@ class AppBackgroundService {
             );
 
             if (isRecentlyUsed) {
-              print(
-                '[BackgroundService] App ${limit.packageName} is legally active. Blocking...',
-              );
-              // Proactively minimize the app by going to Home
-              // awaiting the intent launch might block the isolate slightly but it's okay for background service
-              try {
-                final intent = AndroidIntent(
-                  action: 'android.intent.action.MAIN',
-                  category: 'android.intent.category.HOME',
-                  flags: [Flag.FLAG_ACTIVITY_NEW_TASK],
+              // If the overlay is already up we're mid-block; don't fire the
+              // home intent / notification again every 15s.
+              if (await FlutterOverlayWindow.isActive()) {
+                debugPrint(
+                  '[BackgroundService] Already blocking ${limit.packageName}, skipping.',
                 );
-                await intent.launch();
-                print('[BackgroundService] Home intent launched');
-              } catch (e) {
-                print("[BackgroundService] Error launching home intent: $e");
-              }
+              } else {
+                debugPrint(
+                  '[BackgroundService] App ${limit.packageName} is active. Blocking...',
+                );
+                // Proactively minimize the app by going to Home
+                // awaiting the intent launch might block the isolate slightly but it's okay for background service
+                try {
+                  final intent = AndroidIntent(
+                    action: 'android.intent.action.MAIN',
+                    category: 'android.intent.category.HOME',
+                    flags: [Flag.FLAG_ACTIVITY_NEW_TASK],
+                  );
+                  await intent.launch();
+                  debugPrint('[BackgroundService] Home intent launched');
+                } catch (e) {
+                  debugPrint("[BackgroundService] Error launching home intent: $e");
+                }
 
-              await _showOverlay(limit.appName);
+                // Alert the user with a sound + vibration notification.
+                await _showTimeUpNotification(limit.appName);
+                await _showOverlay(limit.appName);
+              }
             } else {
-              print(
+              debugPrint(
                 '[BackgroundService] App ${limit.packageName} limit reached but not recently used (inactive).',
               );
             }
@@ -194,20 +224,51 @@ class AppBackgroundService {
         }
       }
     } catch (e) {
-      print('Error in usage check loop: $e');
+      debugPrint('Error in usage check loop: $e');
     }
   }
 
+  /// Shows the "Time's Up" alert with sound + vibration on the high-importance
+  /// 'focus_alerts' channel. A fixed id means a new alert replaces the old one
+  /// instead of stacking.
+  static Future<void> _showTimeUpNotification(String appName) async {
+    final FlutterLocalNotificationsPlugin plugin =
+        FlutterLocalNotificationsPlugin();
+
+    await plugin.show(
+      id: 999,
+      title: "Time's Up! ⏰",
+      body: "Your daily limit for $appName is over.",
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'focus_alerts',
+          'Focus Alerts',
+          channelDescription:
+              'Alerts you when an app reaches its daily time limit.',
+          // A small icon is mandatory; without it the plugin throws an NPE in
+          // setSmallIcon. Reusing the drawable bundled for the foreground service.
+          icon: 'ic_bg_service_small',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          // For a custom ringtone, add android/app/src/main/res/raw/time_up.mp3
+          // and set: sound: RawResourceAndroidNotificationSound('time_up'),
+        ),
+      ),
+    );
+  }
+
   static Future<void> _showOverlay(String appName) async {
-    print('[BackgroundService] Attempting to show overlay for $appName');
+    debugPrint('[BackgroundService] Attempting to show overlay for $appName');
     if (await FlutterOverlayWindow.isActive()) {
-      print('[BackgroundService] Overlay already active');
+      debugPrint('[BackgroundService] Overlay already active');
       return;
     }
 
     bool permission = await FlutterOverlayWindow.isPermissionGranted();
     if (!permission) {
-      print('[BackgroundService] Overlay permission NOT granted');
+      debugPrint('[BackgroundService] Overlay permission NOT granted');
       return;
     }
 
